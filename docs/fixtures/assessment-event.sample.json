@@ -1,0 +1,81 @@
+{
+  "eventType": "aion.assessment.submitted",
+  "eventVersion": "1.0",
+  "eventId": "11111111-1111-4111-8111-111111111111:assessment",
+  "occurredAt": "2026-09-21T10:00:04.512Z",
+  "source": "aion-growth-funnel",
+  "submissionId": "11111111-1111-4111-8111-111111111111",
+  "ghl": {
+    "recordOwner": "api",
+    "locationId": "SAMPLE_LOCATION_ID",
+    "contactId": "SAMPLE_CONTACT_ID",
+    "opportunityId": "SAMPLE_OPPORTUNITY_ID",
+    "noteId": "SAMPLE_NOTE_ID"
+  },
+  "contact": {
+    "fullName": "Dana Reyes",
+    "firstName": "Dana",
+    "lastName": "Reyes",
+    "email": "dana@examplebuilders.test",
+    "phone": "+15555550123",
+    "businessName": "Example Builders",
+    "website": "examplebuilders.test"
+  },
+  "assessment": {
+    "audience": "contractor-builder",
+    "audienceLabel": "Contractors & Builders",
+    "bottleneck": "inconsistent-follow-up",
+    "bottleneckLabel": "People inquire, but follow-up is inconsistent",
+    "channels": ["referrals", "google-website"],
+    "channelLabels": ["Referrals", "Google / Website"],
+    "followUp": "manual",
+    "followUpLabel": "We handle it manually through calls, texts, or DMs",
+    "goal": "estimate-requests",
+    "goalLabel": "Estimate requests",
+    "contentNeed": "need-production",
+    "contentNeedLabel": "Yes, we need production support",
+    "timing": "asap",
+    "timingLabel": "As soon as practical"
+  },
+  "recommendation": {
+    "coreServiceId": "sales-follow-up",
+    "coreServiceName": "Sales & Follow-Up System",
+    "serviceIds": ["sales-follow-up", "content-production"],
+    "ruleId": "sales-process-gap",
+    "includesProduction": true,
+    "productionIsAddOn": true,
+    "priorities": [
+      "Route every inquiry into one place with an owner and a due time",
+      "Set a first-response step that runs whether or not someone remembers",
+      "Audit existing assets to see what is already usable"
+    ],
+    "reasons": [
+      "You told us the sticking point is \"People inquire, but follow-up is inconsistent\".",
+      "Your follow-up today is \"We handle it manually through calls, texts, or DMs\", so inquiries depend on someone remembering.",
+      "Adding more inquiries before that is fixed usually increases the number that go cold, not the number that convert.",
+      "You also asked for production support, so we'd add Premium Content Production alongside the core build. It stays optional.",
+      "Estimate requests are high-intent and time-sensitive, so the path from inquiry to site visit is where most of the value sits."
+    ]
+  },
+  "consent": {
+    "marketingEmail": true,
+    "marketingEmailAt": "2026-09-21T10:00:00.000Z",
+    "copyVersion": "2026-09-21.v1"
+  },
+  "attribution": {
+    "utmSource": "google",
+    "utmMedium": "cpc",
+    "utmCampaign": "fall-remodel",
+    "landingPage": "https://aionsystems.example/",
+    "referrer": "https://www.google.com/"
+  },
+  "tags": [
+    "source:aion-growth-funnel",
+    "audience:contractor-builder",
+    "service:sales-follow-up",
+    "interest:content-production"
+  ],
+  "summary": "AION Growth Assessment\nSubmitted: 2026-09-21T10:00:00.000Z\nSubmission ID: 11111111-1111-4111-8111-111111111111\n\nBusiness: Example Builders\nBusiness type: Contractors & Builders\nWebsite / social: examplebuilders.test\n\nMain bottleneck: People inquire, but follow-up is inconsistent\nInquiry channels: Referrals, Google / Website\nCurrent follow-up: We handle it manually through calls, texts, or DMs\nWants more of: Estimate requests\nContent production: Yes, we need production support\nTimeframe: As soon as practical\n\nSuggested starting point: Sales & Follow-Up System + Premium Content Production (optional add-on)\nRule applied: sales-process-gap\n\nFirst priorities:\n  1. Route every inquiry into one place with an owner and a due time\n  2. Set a first-response step that runs whether or not someone remembers\n  3. Audit existing assets to see what is already usable\n\nMarketing email consent: yes (2026-09-21T10:00:00.000Z, copy 2026-09-21.v1)\nPhone submission is not SMS consent.\n\nAttribution:\n  utmSource: google\n  utmMedium: cpc\n  utmCampaign: fall-remodel\n  landingPage: https://aionsystems.example/\n  referrer: https://www.google.com/",
+  "contentProductionInterest": true,
+  "internalReviewRequired": true
+}

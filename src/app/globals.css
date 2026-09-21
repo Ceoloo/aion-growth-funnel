@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+/*
+ * AION design tokens.
+ *
+ * Deep navy and charcoal for structure, warm white for reading surfaces,
+ * electric blue for action and a restrained cyan for detail only. Every
+ * accent is used sparingly on purpose — the page should read as credible
+ * rather than luminous.
+ */
+@theme {
+  --color-navy-950: #050d17;
+  --color-navy-900: #0a1726;
+  --color-navy-800: #102438;
+  --color-navy-700: #18344d;
+
+  --color-charcoal-900: #1a2028;
+  --color-charcoal-700: #2b333d;
+  --color-charcoal-500: #4b5663;
+  --color-charcoal-400: #6b7787;
+
+  --color-paper-50: #fdfcfa;
+  --color-paper-100: #faf8f4;
+  --color-paper-200: #f2eee6;
+  --color-paper-300: #e6e0d4;
+
+  --color-line: #e4ded2;
+  --color-line-strong: #d3cabb;
+
+  --color-electric-600: #1750d8;
+  --color-electric-500: #1f63f5;
+  --color-electric-400: #4d86ff;
+  --color-electric-100: #e3ecff;
+
+  --color-cyan-500: #2eb6d4;
+  --color-cyan-100: #dff4f9;
+
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --radius-card: 1rem;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgb(10 23 38 / 0.04), 0 8px 24px -12px rgb(10 23 38 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(10 23 38 / 0.06), 0 16px 40px -16px rgb(10 23 38 / 0.22);
+}
+
+@layer base {
+  :root {
+    /* Real viewport height with a safe fallback for older browsers. */
+    --app-height: 100vh;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+
+  @supports (height: 100dvh) {
+    :root {
+      --app-height: 100dvh;
+    }
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper-100);
+    color: var(--color-charcoal-900);
+    font-family: var(--font-sans);
+    /* Never let a wide element create a sideways scroll on a 360px screen. */
+    overflow-x: hidden;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A visible, high-contrast focus ring everywhere, for keyboard users. */
+  :focus-visible {
+    outline: 3px solid var(--color-electric-500);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Interactive targets never fall below 44px. */
+  button,
+  [role="button"],
+  .aion-target,
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer components {
+  .aion-shell {
+    padding-left: max(1rem, var(--safe-left));
+    padding-right: max(1rem, var(--safe-right));
+  }
+
+  /*
+   * Sticky action bars sit above the content but never on top of it: each
+   * screen reserves matching bottom padding so the last element can always be
+   * scrolled clear of the bar, and the bar respects the home indicator.
+   */
+  .aion-sticky-actions {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: max(1rem, var(--safe-bottom));
+    background: linear-gradient(
+      to top,
+      var(--color-paper-100) 62%,
+      color-mix(in srgb, var(--color-paper-100) 0%, transparent)
+    );
+  }
+
+  .aion-skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .aion-skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+  }
+}
+
+/*
+ * Motion is a courtesy, never a dependency. With reduced motion requested,
+ * transitions collapse to near-zero and nothing animates in.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aion-step-enter {
+    animation: aion-step-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes aion-step-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
