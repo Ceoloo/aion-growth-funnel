@@ -1,32 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { consentCopy, MARKETING_CONSENT_VERSION } from "@/content/consent";
+import * as React from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Send } from "lucide-react";
+import { consentCopy } from "@/content/consent";
+import {
+  contactFormSchema,
+  emptyContactForm,
+  type ContactFormValues,
+} from "@/lib/contact-form-schema";
 import type { Recommendation } from "@/lib/recommendation";
-import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
-import { CheckboxField, HoneypotField, TextField } from "@/components/ui/Field";
-import { BackButton, StepContainer } from "@/components/ui/StepContainer";
-
-export interface ContactFormValues {
-  fullName: string;
-  email: string;
-  businessName: string;
-  phone: string;
-  website: string;
-  marketingEmail: boolean;
-  honeypot: string;
-}
-
-export const emptyContactForm: ContactFormValues = {
-  fullName: "",
-  email: "",
-  businessName: "",
-  phone: "",
-  website: "",
-  marketingEmail: false,
-  honeypot: "",
-};
+import { useKeyboardOpen } from "@/hooks/use-keyboard-open";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { ConsentField, HoneypotField, TextField } from "@/components/ui/form-field";
+import { BackButton, StepHeading, StepShell } from "@/components/ui/step-shell";
 
 export interface SubmissionFailure {
   code: string;
@@ -39,86 +28,104 @@ export interface SubmissionFailure {
 /**
  * Contact capture.
  *
- * Input types and `inputMode` are set per field so a phone shows the right
- * keyboard: an email keyboard for email, a telephone keypad for phone, a URL
- * keyboard for the website. `autoComplete` tokens let the browser fill the
- * form rather than making someone retype it.
+ * React Hook Form keeps the entered values in an uncontrolled form, so a
+ * recoverable error (a 503, a dropped connection) never clears what was typed
+ * — the visitor just presses the button again.
+ *
+ * Input types, `inputMode` and `autoComplete` are set per field so a phone
+ * shows the right keyboard and the browser can autofill. When that keyboard is
+ * open the action area detaches and scrolls with the content, so the visitor
+ * is never pinned between the keyboard and a fixed footer.
  */
 export function ContactStep({
   recommendation,
-  values,
-  onChange,
+  defaultValues,
   onSubmit,
+  onValuesChange,
   onBack,
   submitting,
   failure,
+  scrollRef,
 }: {
   recommendation: Recommendation;
-  values: ContactFormValues;
-  onChange: (patch: Partial<ContactFormValues>) => void;
-  onSubmit: () => void;
+  defaultValues?: ContactFormValues;
+  onSubmit: (values: ContactFormValues) => void;
+  onValuesChange?: (values: ContactFormValues) => void;
   onBack: () => void;
   submitting: boolean;
   failure: SubmissionFailure | null;
+  scrollRef?: React.Ref<HTMLDivElement>;
 }) {
-  const [touched, setTouched] = useState(false);
-  const renderedAt = useRef(Date.now());
+  const keyboardOpen = useKeyboardOpen();
+  const formId = React.useId();
 
-  const localErrors: Record<string, string> = {};
-  if (touched) {
-    if (values.fullName.trim().length < 2) localErrors.fullName = "Please enter your full name.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim()))
-      localErrors.email = "Enter a valid email address.";
-    if (values.businessName.trim().length < 2)
-      localErrors.businessName = "Please enter your business name.";
-  }
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    setError,
+    formState: { errors, isSubmitted },
+  } = useForm<ContactFormValues>({
+    resolver: zodResolver(contactFormSchema),
+    defaultValues: defaultValues ?? emptyContactForm,
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+  });
 
-  const errors = { ...localErrors, ...(failure?.fieldErrors ?? {}) };
+  const marketingEmail = watch("marketingEmail");
+  const values = watch();
+
+  // Keep the parent in sync so answers survive navigating back to the result.
+  React.useEffect(() => {
+    onValuesChange?.(values);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(values)]);
+
+  // Server-side field errors are merged into the same display path as local ones.
+  React.useEffect(() => {
+    if (!failure?.fieldErrors) return;
+    for (const [key, message] of Object.entries(failure.fieldErrors)) {
+      const field = key.replace(/^contact\./, "") as keyof ContactFormValues;
+      if (field in emptyContactForm) setError(field, { type: "server", message });
+    }
+  }, [failure, setError]);
+
   const hasErrors = Object.keys(errors).length > 0;
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setTouched(true);
-    const invalid =
-      values.fullName.trim().length < 2 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim()) ||
-      values.businessName.trim().length < 2;
-    if (invalid) return;
-    onSubmit();
-  }
+  const actions = (
+    <div className="flex flex-col gap-2">
+      <Button
+        type="submit"
+        form={formId}
+        size="action"
+        full
+        loading={submitting}
+        loadingLabel="Sending…"
+      >
+        Send my request
+        <Send aria-hidden="true" />
+      </Button>
+      <div className="flex justify-center">
+        <BackButton onClick={onBack} label="Back to my plan" />
+      </div>
+    </div>
+  );
 
   return (
-    // The form must carry the flex sizing itself: as a plain block it would
-    // break the height chain between the shell and StepContainer's internal
-    // scroll area, and the sticky action bar would then sit over the fields
-    // instead of below them.
     <form
-      onSubmit={handleSubmit}
+      id={formId}
+      onSubmit={handleSubmit(onSubmit)}
       noValidate
-      data-rendered-at={renderedAt.current}
       className="flex min-h-0 flex-1 flex-col"
     >
-      <StepContainer
-        stepKey="contact"
-        question="Where should we send it?"
-        help={`We'll put together a starting point around ${recommendation.service.name} and reply personally.`}
-        actions={
-          <div className="flex flex-col gap-3">
-            <Button type="submit" size="lg" fullWidth disabled={submitting}>
-              {submitting ? "Sending…" : "Send my request"}
-            </Button>
-            <div className="flex justify-center">
-              <BackButton onClick={onBack} label="Back to my plan" />
-            </div>
-          </div>
-        }
-        footnote={
-          <p>
-            {consentCopy.purpose} {consentCopy.phoneNote}
-          </p>
-        }
-      >
-        <div className="space-y-4">
+      <StepShell scrollRef={scrollRef} actions={actions} detachActions={keyboardOpen}>
+        <StepHeading
+          title="Where should we send it?"
+          supporting={`We'll put together a starting point around ${recommendation.service.name} and reply personally.`}
+        />
+
+        <div className="mt-7 space-y-4">
           {failure ? (
             <Alert
               tone={failure.retryable ? "warning" : "error"}
@@ -134,7 +141,7 @@ export function ContactStep({
                   You can reach us directly at{" "}
                   <a
                     href={`mailto:${failure.contactEmail}`}
-                    className="font-semibold text-electric-600 underline underline-offset-4"
+                    className="font-semibold text-primary underline underline-offset-4"
                   >
                     {failure.contactEmail}
                   </a>
@@ -144,25 +151,22 @@ export function ContactStep({
             </Alert>
           ) : null}
 
-          {touched && hasErrors && !failure ? (
+          {isSubmitted && hasErrors && !failure ? (
             <Alert tone="error" title="Please check the highlighted fields." />
           ) : null}
 
           <TextField
             label="Full name"
-            name="fullName"
             required
             autoComplete="name"
-            enterKeyHint="next"
             autoCapitalize="words"
-            value={values.fullName}
-            error={errors.fullName ?? errors["contact.fullName"]}
-            onChange={(e) => onChange({ fullName: e.currentTarget.value })}
+            enterKeyHint="next"
+            error={errors.fullName?.message}
+            {...register("fullName")}
           />
 
           <TextField
             label="Email"
-            name="email"
             type="email"
             inputMode="email"
             required
@@ -171,38 +175,32 @@ export function ContactStep({
             autoCorrect="off"
             spellCheck={false}
             enterKeyHint="next"
-            value={values.email}
-            error={errors.email ?? errors["contact.email"]}
-            onChange={(e) => onChange({ email: e.currentTarget.value })}
+            error={errors.email?.message}
+            {...register("email")}
           />
 
           <TextField
             label="Business name"
-            name="businessName"
             required
             autoComplete="organization"
             enterKeyHint="next"
-            value={values.businessName}
-            error={errors.businessName ?? errors["contact.businessName"]}
-            onChange={(e) => onChange({ businessName: e.currentTarget.value })}
+            error={errors.businessName?.message}
+            {...register("businessName")}
           />
 
           <TextField
             label="Phone"
-            name="phone"
             type="tel"
             inputMode="tel"
             autoComplete="tel"
             enterKeyHint="next"
             hint="Only used to reach you about this request."
-            value={values.phone}
-            error={errors["contact.phone"]}
-            onChange={(e) => onChange({ phone: e.currentTarget.value })}
+            error={errors.phone?.message}
+            {...register("phone")}
           />
 
           <TextField
             label="Website or social profile"
-            name="website"
             type="url"
             inputMode="url"
             autoComplete="url"
@@ -211,25 +209,25 @@ export function ContactStep({
             spellCheck={false}
             enterKeyHint="done"
             placeholder="yourbusiness.com"
-            value={values.website}
-            error={errors["contact.website"]}
-            onChange={(e) => onChange({ website: e.currentTarget.value })}
+            error={errors.website?.message}
+            {...register("website")}
           />
 
-          <CheckboxField
+          <ConsentField
             label={consentCopy.marketingLabel}
-            checked={values.marketingEmail}
-            onChange={(e) => onChange({ marketingEmail: e.currentTarget.checked })}
-            data-consent-version={MARKETING_CONSENT_VERSION}
+            checked={marketingEmail}
+            onCheckedChange={(checked) =>
+              setValue("marketingEmail", checked, { shouldDirty: true })
+            }
           />
 
-          <HoneypotField
-            name="company_website_confirm"
-            value={values.honeypot}
-            onChange={(honeypot) => onChange({ honeypot })}
-          />
+          <p className="text-small text-muted-foreground">
+            {consentCopy.purpose} {consentCopy.phoneNote}
+          </p>
+
+          <HoneypotField {...register("companyWebsiteConfirm")} />
         </div>
-      </StepContainer>
+      </StepShell>
     </form>
   );
 }

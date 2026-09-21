@@ -1,17 +1,22 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
+import { m } from "@/components/ui/m";
+import { CalendarClock, ExternalLink } from "lucide-react";
 import { trackBookingLinkClicked } from "@/lib/analytics";
 import type { Recommendation } from "@/lib/recommendation";
-import { Alert } from "@/components/ui/Alert";
-import { StepContainer } from "@/components/ui/StepContainer";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { usePrefersReducedMotion } from "@/components/ui/motion";
+import { StepHeading, StepShell } from "@/components/ui/step-shell";
 
 export interface SubmissionSuccess {
   submissionId: string;
   recommendedService: string;
   bookingUrl: string | null;
   contactEmail: string | null;
-  /** "complete" once the CRM writes finished; "pending" while queued. */
+  /** "complete" once the CRM writes finished; "pending" while still queued. */
   delivery: "complete" | "pending" | "needs_operator";
 }
 
@@ -24,42 +29,51 @@ const AGENDA = [
 /**
  * Post-submission screen.
  *
- * This is only ever rendered after the server confirmed it durably stored the
- * submission. The wording distinguishes "received" from "synced": we never
- * claim CRM synchronisation is finished while delivery is still pending.
+ * Only rendered after the server confirmed it durably stored the submission.
+ * The wording separates "received" from "synced": we never claim CRM
+ * synchronisation is finished while delivery is still pending.
  *
- * If no booking link is configured, the screen says so honestly instead of
- * inventing a calendar URL or implying availability.
+ * The booking step is a plain external link rather than an embedded calendar.
+ * An embed is the part most likely to fail on a phone — blocked third-party
+ * frames, a slow connection, a private window — and a link cannot fail in
+ * those ways. The full URL is also printed beneath it as a fallback.
  */
 export function ConfirmationStep({
   result,
   recommendation,
+  scrollRef,
 }: {
   result: SubmissionSuccess;
   recommendation: Recommendation;
+  scrollRef?: React.Ref<HTMLDivElement>;
 }) {
+  const reduced = usePrefersReducedMotion();
+
+  const enter = reduced
+    ? {}
+    : {
+        initial: { opacity: 0, y: 8 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const },
+      };
+
   return (
-    <StepContainer
-      stepKey="confirmation"
-      question="Your request has been received."
-      help={`We have your answers and your suggested starting point: ${result.recommendedService}.`}
+    <StepShell
+      scrollRef={scrollRef}
       actions={
         <div className="flex justify-center pb-1">
-          <Link
-            href="/"
-            className="inline-flex min-h-[44px] items-center rounded-full px-4 text-[0.92rem] font-semibold text-charcoal-500 transition-colors hover:bg-paper-200 hover:text-navy-900"
-          >
-            Back to the homepage
-          </Link>
+          <Button asChild variant="quiet" size="compact">
+            <Link href="/">Back to the homepage</Link>
+          </Button>
         </div>
       }
-      footnote={
-        <p>
-          Reference: <span className="font-mono text-[0.82rem]">{result.submissionId}</span>
-        </p>
-      }
     >
-      <div className="space-y-5">
+      <StepHeading
+        title="Your request has been received."
+        supporting={`We have your answers and your suggested starting point: ${result.recommendedService}.`}
+      />
+
+      <m.div {...enter} className="mt-7 space-y-5">
         <Alert tone="success" title="Saved and queued for our team.">
           <p>
             {result.delivery === "complete"
@@ -68,30 +82,28 @@ export function ConfirmationStep({
           </p>
         </Alert>
 
-        <section className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-          <h2 className="text-[0.74rem] font-semibold tracking-[0.18em] text-charcoal-400 uppercase">
+        <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+          <h2 className="text-eyebrow uppercase text-muted-foreground">
             Your suggested starting point
           </h2>
-          <p className="mt-2 text-[1.15rem] font-semibold text-navy-900">
-            {recommendation.service.name}
-          </p>
+          <p className="mt-2 text-h3 text-card-foreground">{recommendation.service.name}</p>
           {recommendation.productionIsAddOn ? (
-            <p className="mt-1.5 text-[0.9rem] text-charcoal-500">
+            <p className="mt-1.5 text-small text-muted-foreground">
               With Premium Content Production as an optional add-on.
             </p>
           ) : null}
         </section>
 
-        <section className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-          <h2 className="text-[0.74rem] font-semibold tracking-[0.18em] text-charcoal-400 uppercase">
+        <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+          <h2 className="text-eyebrow uppercase text-muted-foreground">
             What the strategy call covers
           </h2>
           <ul className="mt-3 space-y-2.5">
             {AGENDA.map((item) => (
-              <li key={item} className="flex gap-3 text-[0.95rem] leading-relaxed text-charcoal-700">
+              <li key={item} className="flex gap-3 text-body text-card-foreground">
                 <span
                   aria-hidden="true"
-                  className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-electric-500"
+                  className="mt-[0.6em] size-1.5 shrink-0 rounded-full bg-primary"
                 />
                 <span>{item}</span>
               </li>
@@ -100,25 +112,29 @@ export function ConfirmationStep({
 
           {result.bookingUrl ? (
             <div className="mt-6">
-              <a
-                href={result.bookingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={trackBookingLinkClicked}
-                className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-electric-500 px-7 text-[1.02rem] font-semibold text-white transition-colors hover:bg-electric-600 sm:w-auto"
-              >
-                Pick a time for the call
-              </a>
-              <p className="mt-3 text-[0.84rem] leading-relaxed text-charcoal-400">
-                Opens our booking calendar in a new tab. If it doesn&rsquo;t open, the link is{" "}
+              <Button asChild size="action" full className="sm:w-auto">
                 <a
                   href={result.bookingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={trackBookingLinkClicked}
-                  className="break-all underline underline-offset-4"
+                  onClick={() => trackBookingLinkClicked({ entry_point: "confirmation" })}
+                >
+                  <CalendarClock aria-hidden="true" />
+                  Pick a time for the call
+                </a>
+              </Button>
+              <p className="mt-3 text-small text-muted-foreground">
+                Opens our booking calendar in a new tab. If it doesn&rsquo;t open, the link
+                is{" "}
+                <a
+                  href={result.bookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackBookingLinkClicked({ entry_point: "confirmation" })}
+                  className="inline-flex items-baseline gap-1 break-all underline underline-offset-4"
                 >
                   {result.bookingUrl}
+                  <ExternalLink aria-hidden="true" className="size-3 shrink-0" />
                 </a>
                 .
               </p>
@@ -127,15 +143,15 @@ export function ConfirmationStep({
             <div className="mt-6">
               <Alert tone="info" title="We'll reach out to arrange a time.">
                 <p>
-                  Online booking isn&rsquo;t set up yet, so we&rsquo;ll contact you directly to
-                  find a time that works.
+                  Online booking isn&rsquo;t set up yet, so we&rsquo;ll contact you directly
+                  to find a time that works.
                 </p>
                 {result.contactEmail ? (
                   <p>
                     Prefer to reach us first? Email{" "}
                     <a
                       href={`mailto:${result.contactEmail}`}
-                      className="font-semibold text-electric-600 underline underline-offset-4"
+                      className="font-semibold text-primary underline underline-offset-4"
                     >
                       {result.contactEmail}
                     </a>
@@ -146,7 +162,11 @@ export function ConfirmationStep({
             </div>
           )}
         </section>
-      </div>
-    </StepContainer>
+
+        <p className="text-small text-muted-foreground">
+          Reference: <span className="font-mono text-[0.85rem]">{result.submissionId}</span>
+        </p>
+      </m.div>
+    </StepShell>
   );
 }

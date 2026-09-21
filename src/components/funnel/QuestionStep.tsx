@@ -1,17 +1,21 @@
 "use client";
 
+import * as React from "react";
+import { ArrowRight } from "lucide-react";
+import { RadioGroup } from "@/components/ui/radio-group";
+import { Button } from "@/components/ui/button";
+import { ChoiceCard } from "@/components/ui/choice-card";
+import { BackButton, StepHeading, StepShell } from "@/components/ui/step-shell";
+import { ProgressHeader } from "./ProgressHeader";
 import type { Choice } from "@/content/types";
-import { Button } from "@/components/ui/Button";
-import { ChoiceCard } from "@/components/ui/ChoiceCard";
-import { ProgressIndicator } from "@/components/ui/ProgressIndicator";
-import { BackButton, StepContainer } from "@/components/ui/StepContainer";
 
 /**
- * A single question screen.
+ * One question screen.
  *
- * Single-select advances as soon as an option is chosen — one tap, one
- * question, no redundant Continue. Multi-select keeps an explicit Continue
- * because the visitor has to be able to pick more than one thing first.
+ * Selection never auto-advances. A visitor always gets a chance to read their
+ * choice back and change it before committing, and the Continue button is the
+ * single predictable primary action on every screen — including single-select,
+ * where an auto-advance would otherwise make the back button feel like a trap.
  */
 export function QuestionStep({
   stepKey,
@@ -20,12 +24,14 @@ export function QuestionStep({
   choices,
   kind,
   value,
-  onChange,
+  onSelect,
+  onToggle,
   onContinue,
   onBack,
   progress,
   footnote,
   canContinue,
+  scrollRef,
 }: {
   stepKey: string;
   question: string;
@@ -33,71 +39,84 @@ export function QuestionStep({
   choices: Choice<string>[];
   kind: "single" | "multi";
   value: string | string[] | undefined;
-  onChange: (value: string, checked: boolean) => void;
+  onSelect: (value: string) => void;
+  onToggle: (value: string, checked: boolean) => void;
   onContinue: () => void;
   onBack: (() => void) | null;
   progress: { current: number; total: number; percent: number };
   footnote?: React.ReactNode;
   canContinue: boolean;
+  scrollRef?: React.Ref<HTMLDivElement>;
 }) {
   const selected = Array.isArray(value) ? value : value ? [value] : [];
+  const headingId = `${stepKey}-question`;
+  const helpText =
+    kind === "multi" ? [help, "Select all that apply."].filter(Boolean).join(" ") : help;
+
+  const options = choices.map((choice) => (
+    <ChoiceCard
+      key={choice.id}
+      id={`${stepKey}-${choice.id}`}
+      value={choice.id}
+      label={choice.label}
+      hint={choice.hint}
+      type={kind === "multi" ? "checkbox" : "radio"}
+      selected={selected.includes(choice.id)}
+      onToggle={(checked) => onToggle(choice.id, checked)}
+    />
+  ));
 
   return (
-    <StepContainer
-      stepKey={stepKey}
+    <StepShell
+      scrollRef={scrollRef}
       header={
-        <ProgressIndicator
+        <ProgressHeader
           current={progress.current}
           total={progress.total}
           percent={progress.percent}
           label="Growth assessment"
         />
       }
-      question={question}
-      help={help}
-      footnote={footnote}
       actions={
-        <div className="flex items-center justify-between gap-3">
-          {onBack ? <BackButton onClick={onBack} /> : <span />}
-          {/*
-            Multi-select always needs a Continue. Single-select advances on
-            tap, but once an answer exists — which is what a visitor sees after
-            navigating back — an explicit Continue is shown so moving forward
-            never depends on re-tapping the option already selected.
-          */}
-          {kind === "multi" || canContinue ? (
-            <Button
-              type="button"
-              size="lg"
-              onClick={onContinue}
-              disabled={!canContinue}
-              className="min-w-[9rem] flex-1 sm:flex-none"
-            >
-              Continue
-            </Button>
-          ) : (
-            <span className="text-[0.84rem] text-charcoal-400">Select one to continue</span>
-          )}
+        <div className="flex items-center gap-3">
+          {onBack ? <BackButton onClick={onBack} /> : <span className="min-w-[1px]" />}
+          <Button
+            type="button"
+            size="action"
+            onClick={onContinue}
+            disabled={!canContinue}
+            className="ml-auto flex-1 sm:flex-none sm:min-w-[11rem]"
+          >
+            Continue
+            <ArrowRight aria-hidden="true" />
+          </Button>
         </div>
       }
     >
-      <fieldset className="border-0 p-0">
-        <legend className="sr-only">{question}</legend>
-        <div className="flex flex-col gap-2.5">
-          {choices.map((choice) => (
-            <ChoiceCard
-              key={choice.id}
-              name={stepKey}
-              value={choice.id}
-              label={choice.label}
-              hint={choice.hint}
-              type={kind === "multi" ? "checkbox" : "radio"}
-              checked={selected.includes(choice.id)}
-              onSelect={onChange}
-            />
-          ))}
-        </div>
-      </fieldset>
-    </StepContainer>
+      <StepHeading id={headingId} title={question} supporting={helpText} />
+
+      <div className="mt-7">
+        {kind === "multi" ? (
+          // Checkboxes are independent controls, so a group label carries the
+          // question rather than a radio group's roving focus.
+          <div role="group" aria-labelledby={headingId} className="flex flex-col gap-3">
+            {options}
+          </div>
+        ) : (
+          <RadioGroup
+            value={typeof value === "string" ? value : ""}
+            onValueChange={onSelect}
+            aria-labelledby={headingId}
+            className="flex flex-col gap-3"
+          >
+            {options}
+          </RadioGroup>
+        )}
+      </div>
+
+      {footnote ? (
+        <div className="mt-6 text-small text-muted-foreground">{footnote}</div>
+      ) : null}
+    </StepShell>
   );
 }

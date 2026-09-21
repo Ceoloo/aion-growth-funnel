@@ -66,10 +66,34 @@ made to a live GoHighLevel account.
 
 ---
 
+### 6. Real photography — the biggest visual gap
+
+The site currently uses **no photography at all**. That was deliberate: stock
+images presented as project work would be dishonest, and an empty slot is
+better than a misleading one.
+
+It is also the single largest visual upgrade available, and it is the thing
+this business sells.
+
+- [ ] Commission or gather real photography: finished projects, teams at work,
+      owners, locations, and customers who agreed to appear.
+- [ ] Get written permission for anything showing a client, their property or
+      their staff.
+- [ ] Replace the "Example workflows and deliverables" section, or keep it and
+      add a genuine work section beside it.
+
+Until then that section stays explicitly labelled as examples. Do not relabel
+it as client work, case studies or results.
+
+---
+
 ## Recommended before launch
 
-- [ ] `NEXT_PUBLIC_BOOKING_URL` set. Without it, the confirmation screen
-      honestly says AION will reach out — which is fine, just slower.
+- [ ] `NEXT_PUBLIC_BOOKING_URL` set **at build time**. Without it, the
+      confirmation screen honestly says AION will reach out, and the landing
+      page's direct-booking section for warm referral traffic does not appear
+      at all. Set `BOOKING_URL` to the same value so the confirmation screen
+      can be changed later without a rebuild.
 - [ ] `NEXT_PUBLIC_CONTACT_EMAIL` set, so a failed submission has somewhere to go.
 - [ ] `LEAD_IP_HASH_SALT` set to a random value in production.
 - [ ] `NEXT_PUBLIC_SITE_URL` set to the real domain, for metadata and the sitemap.

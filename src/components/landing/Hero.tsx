@@ -1,31 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { brand, ctaLabels, hero, servicesSection } from "@/content/site";
 import { track } from "@/lib/analytics";
+import { Button } from "@/components/ui/button";
 
-/** The chain graphic: five stages, connected. Pure SVG-free flex, so it reflows on small screens. */
+/** The five stages, connected. Wraps rather than scrolling on a 360px screen. */
 function GrowthChain() {
   return (
     <ul className="flex flex-wrap items-center gap-x-2 gap-y-2.5" aria-label="How a customer arrives">
       {brand.chain.map((stage, index) => (
         <li key={stage} className="flex items-center gap-2">
-          <span className="rounded-full border border-line-strong bg-white px-3 py-1.5 text-[0.78rem] font-semibold text-navy-900 sm:text-[0.84rem]">
+          <span className="rounded-pill border border-border bg-card px-3 py-1.5 text-small font-semibold text-card-foreground">
             {stage}
           </span>
           {index < brand.chain.length - 1 ? (
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className="h-3.5 w-3.5 text-electric-500"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
+            <ArrowRight aria-hidden="true" className="size-3.5 text-primary" />
           ) : null}
         </li>
       ))}
@@ -33,65 +24,65 @@ function GrowthChain() {
   );
 }
 
-export function Hero() {
+/**
+ * Above the fold this has to answer four things at a glance: who we help, the
+ * problem, what starting gets you, and the next action. The eyebrow carries
+ * the first, the headline and supporting copy the second and third, and the
+ * primary button the fourth.
+ */
+export function Hero({ ctaSentinelId }: { ctaSentinelId?: string }) {
   return (
-    <section className="aion-shell relative overflow-hidden bg-paper-100 pt-10 pb-14 sm:pt-16 sm:pb-20 lg:pt-20 lg:pb-24">
-      {/* Restrained accent wash — no glass, no neon. */}
+    <section className="surface-light page-gutter relative overflow-hidden bg-background pt-10 pb-16 sm:pt-16 sm:pb-20 lg:pt-20 lg:pb-28">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-40 -right-32 h-[26rem] w-[26rem] rounded-full bg-electric-100/60 blur-3xl"
+        className="pointer-events-none absolute -top-40 -right-32 size-[26rem] rounded-full bg-accent/60 blur-3xl"
       />
-      <div className="relative mx-auto w-full max-w-6xl">
-        <div className="grid items-center gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16">
+      <div className="container-page relative">
+        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
           <div className="max-w-2xl">
-            <p className="text-[0.7rem] font-semibold tracking-[0.18em] text-electric-600 uppercase sm:text-[0.76rem] sm:tracking-[0.2em]">
-              {hero.eyebrow}
-            </p>
+            <p className="text-eyebrow uppercase text-electric-600">{hero.eyebrow}</p>
 
-            <h1 className="mt-4 text-[2rem] leading-[1.1] font-semibold tracking-[-0.025em] text-navy-900 sm:text-[2.85rem] lg:text-[3.4rem]">
-              {hero.headline}
-            </h1>
+            <h1 className="mt-4 text-display text-balance text-foreground">{hero.headline}</h1>
 
-            <p className="mt-5 max-w-xl text-[1.05rem] leading-relaxed text-charcoal-500 sm:text-[1.18rem]">
-              {hero.supporting}
-            </p>
+            <p className="mt-5 max-w-xl text-lead text-muted-foreground">{hero.supporting}</p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link
-                href="/assessment"
-                onClick={() =>
-                  track("landing_cta_clicked", { cta_id: "primary", cta_location: "hero" })
-                }
-                className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-electric-500 px-7 text-[1.02rem] font-semibold text-white shadow-[0_10px_30px_-14px_rgba(23,80,216,0.95)] transition-colors hover:bg-electric-600 sm:w-auto"
-              >
-                {ctaLabels.primary}
-              </Link>
-              <a
-                href={`#${servicesSection.id}`}
-                onClick={() =>
-                  track("landing_cta_clicked", { cta_id: "secondary", cta_location: "hero" })
-                }
-                className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-line-strong bg-white px-7 text-[1.02rem] font-semibold text-navy-900 transition-colors hover:border-charcoal-400 sm:w-auto"
-              >
-                {ctaLabels.secondary}
-              </a>
+            <div id={ctaSentinelId} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Button asChild size="action" full className="sm:w-auto">
+                <Link
+                  href="/assessment"
+                  onClick={() =>
+                    track("landing_cta_clicked", { cta_id: "primary", cta_location: "hero" })
+                  }
+                >
+                  {ctaLabels.primary}
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              </Button>
+              <Button asChild variant="secondary" size="action" full className="sm:w-auto">
+                <a
+                  href={`#${servicesSection.id}`}
+                  onClick={() =>
+                    track("landing_cta_clicked", { cta_id: "secondary", cta_location: "hero" })
+                  }
+                >
+                  {ctaLabels.secondary}
+                </a>
+              </Button>
             </div>
 
-            <p className="mt-4 text-[0.9rem] text-charcoal-400">{hero.microcopy}</p>
+            <p className="mt-4 text-small text-muted-foreground">{hero.microcopy}</p>
           </div>
 
           <div className="lg:pl-4">
-            <div className="rounded-3xl border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
-              <p className="text-[0.72rem] font-semibold tracking-[0.18em] text-charcoal-400 uppercase">
-                The system we build
-              </p>
-              <p className="mt-3 text-[1.15rem] leading-snug font-semibold text-navy-900 sm:text-[1.3rem]">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8">
+              <p className="text-eyebrow uppercase text-muted-foreground">The system we build</p>
+              <p className="mt-3 text-h3 leading-snug text-card-foreground sm:text-h2">
                 {brand.tagline}
               </p>
               <div className="mt-6">
                 <GrowthChain />
               </div>
-              <p className="mt-6 border-t border-line pt-5 text-[0.92rem] leading-relaxed text-charcoal-500">
+              <p className="mt-6 border-t border-border pt-5 text-small text-muted-foreground">
                 {brand.description}
               </p>
             </div>

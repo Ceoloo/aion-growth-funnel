@@ -1,28 +1,25 @@
 import { howItWorks } from "@/content/site";
-import { Section } from "@/components/ui/Section";
+import { Section } from "@/components/ui/section";
 
 export function HowItWorks() {
   return (
-    <Section tone="navy" eyebrow={howItWorks.eyebrow} heading={howItWorks.heading}>
+    <Section surface="light" eyebrow={howItWorks.eyebrow} heading={howItWorks.heading}>
       <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {howItWorks.steps.map((step, index) => (
-          <li
-            key={step.name}
-            className="rounded-2xl border border-white/12 bg-white/[0.04] p-5 sm:p-6"
-          >
+          <li key={step.name} className="rounded-xl border border-border bg-card p-5 sm:p-6">
             <span
               aria-hidden="true"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500/15 text-[0.85rem] font-bold text-cyan-500"
+              className="inline-flex size-8 items-center justify-center rounded-full bg-accent text-[0.85rem] font-bold text-accent-foreground"
             >
               {index + 1}
             </span>
-            <h3 className="mt-4 text-[1.1rem] font-semibold text-paper-50">{step.name}</h3>
-            <p className="mt-2 text-[0.92rem] leading-relaxed text-paper-300">{step.body}</p>
+            <h3 className="mt-4 text-h3 text-card-foreground">{step.name}</h3>
+            <p className="mt-2 text-small text-muted-foreground">{step.body}</p>
           </li>
         ))}
       </ol>
 
-      <p className="mt-6 border-t border-white/12 pt-6 text-[0.92rem] leading-relaxed text-paper-300">
+      <p className="mt-6 border-t border-border pt-6 text-small text-muted-foreground">
         {howItWorks.scopeNote}
       </p>
     </Section>

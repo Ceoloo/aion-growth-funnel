@@ -9,10 +9,69 @@ export const brand = {
   chain: ["Attention", "Inquiry", "Follow-up", "Appointment", "Customer"],
 } as const;
 
+/**
+ * Every call-to-action label in one place.
+ *
+ * Centralised so copy can be changed — or A/B tested later — without touching
+ * components. No experimentation platform is wired up for the first release;
+ * this is the seam it would plug into.
+ */
 export const ctaLabels = {
   primary: "Find My Growth Plan",
+  primaryShort: "Start",
   secondary: "See What's Included",
   result: "Discuss My Growth Plan",
+  booking: "Book a call directly",
+  stickyMobile: "Find My Growth Plan",
+} as const;
+
+/**
+ * The direct-booking path, for people who arrive already warm — a referral, a
+ * conversation that already happened. They should not have to walk an
+ * assessment to reach a calendar.
+ *
+ * Only rendered when a booking URL is configured; there is no fabricated
+ * calendar link and no claimed availability.
+ */
+export const directBooking = {
+  eyebrow: "Already spoken to us?",
+  heading: "Skip the assessment and book a time.",
+  supporting:
+    "If you came from a referral or we've already talked, go straight to the calendar. The assessment is there to help us prepare — it isn't a gate.",
+} as const;
+
+/**
+ * Illustrative examples of what we build. These are labelled as examples on
+ * the page for a reason: they are not client work, not case studies and not
+ * results. Replace with real, permitted client examples when they exist.
+ */
+export const exampleWork = {
+  eyebrow: "What it looks like",
+  heading: "Example workflows and deliverables.",
+  supporting:
+    "Illustrative examples of the pieces we assemble, not client work. We'll show you the real thing for your situation on the call.",
+  disclaimer:
+    "Examples only — these are representative of the work, not a portfolio of past clients or a claim about results.",
+  items: [
+    {
+      kind: "Workflow",
+      title: "Inquiry to booked appointment",
+      body: "A form, a DM and a missed call all land in one pipeline, get an owner and a due time, and trigger a first response that doesn't depend on anyone remembering.",
+      steps: ["Inquiry captured", "Owner assigned", "First response sent", "Time booked"],
+    },
+    {
+      kind: "Deliverable",
+      title: "Conversion-focused landing page",
+      body: "One offer, one audience, one next step — built to be measured, so you can see which campaigns actually produce inquiries.",
+      steps: ["Offer clarified", "Page built", "Tracking connected", "Reviewed monthly"],
+    },
+    {
+      kind: "Deliverable",
+      title: "Project and team content library",
+      body: "Photography and video of finished work, the people who did it and the customers who bought it — packaged for the channels where your inquiries start.",
+      steps: ["Assets audited", "Shot list planned", "Captured", "Packaged per channel"],
+    },
+  ],
 } as const;
 
 export const hero = {

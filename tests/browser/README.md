@@ -15,19 +15,28 @@ Build and start the app first — these run against a real server, not a dev
 build:
 
 ```bash
+# NEXT_PUBLIC_* values are inlined at build time, so set them for the build too.
+NEXT_PUBLIC_CONTACT_EMAIL=hello@example.test \
+NEXT_PUBLIC_BOOKING_URL=https://book.example.test/strategy-call \
 npm run build
+
 LEAD_STORE_DRIVER=sqlite \
 LEAD_STORE_SQLITE_PATH=./data/leads.sqlite \
 NEXT_PUBLIC_CONTACT_EMAIL=hello@example.test \
+NEXT_PUBLIC_BOOKING_URL=https://book.example.test/strategy-call \
+LEAD_MAX_PER_IP_PER_HOUR=500 \
 npx next start -p 3100
 ```
+
+`LEAD_MAX_PER_IP_PER_HOUR` is raised because the harnesses submit far more
+often than a person would; the limiter itself is covered by unit tests.
 
 Then, in another shell:
 
 ```bash
-npm run verify:viewports      # layout at 360 / 390 / 768 / 1440 + all four audience paths
+npm run verify:viewports      # layout at 360 / 390 / 430 / 768 / 1440 + all four audience paths
 npm run verify:interactions   # back navigation, validation, submission, reduced motion, keyboard
-npm run verify:short-screens  # scrolling and sticky-bar behaviour on short viewports
+npm run verify:short-screens  # short viewports, long labels, safe areas, slow network, booking fallback
 ```
 
 Override the target with `BASE_URL=https://...`.
@@ -36,9 +45,9 @@ Override the target with `BASE_URL=https://...`.
 
 | Script | Checks |
 |---|---|
-| `viewports.mjs` | No horizontal overflow and ≥44px tap targets at 360/390/768/1440; single column on mobile, two columns on desktop; no console errors; all four audience paths reach the right recommendation with the goal echoed back |
-| `interactions.mjs` | Back navigation preserves answers (including multi-select); changing audience clears only the now-impossible goal; progress matches the branch; required-field validation; mobile keyboard `inputmode`; consent starts unchecked; the sticky bar never covers a focused input; a success screen appears only when the server accepted the submission; a failure is surfaced with a fallback contact; `sessionStorage` cleared after submission and contact details never written to it; reduced motion; keyboard selection |
-| `short-screens.mjs` | On very short and landscape viewports the step region scrolls, the last option stays reachable and clear of the action bar, and the bar stays on screen |
+| `viewports.mjs` | At 360/390/430/768/1440: no horizontal overflow, every interactive target ≥48px, primary actions ≥52px, no console errors. Landing surfaces alternate with no adjacent repeats. The sticky mobile CTA is hidden while the hero CTA is visible, appears after it scrolls away, never covers the footer, and is absent on desktop. On the assessment: Continue is always visible, disabled until answered, ≥52px; options are keyboard-reachable; **selecting does not auto-advance**. Desktop shows two columns with the step column held to the 440–560px band. Then all four audience paths, end to end, including the "Select all that apply." instruction and the goal echoed back. |
+| `interactions.mjs` | Back navigation preserves answers (including multi-select) and re-enables Continue immediately; changing audience clears only the now-impossible goal; progress reports the real branch position; required-field validation with errors wired to their fields via `aria-invalid`/`aria-describedby`; mobile keyboard `inputmode` and ≥16px input text; consent starts unchecked; the action area never covers a focused input; a success screen appears only when the server accepted the submission; a failure is surfaced with a fallback contact **and keeps everything typed**; repeated taps send only one request; `sessionStorage` cleared after submission and contact details never written to it; reduced motion leaves no residual transform; the funnel is completable from the keyboard alone with focus moving to each new step. |
+| `short-screens.mjs` | On very short and landscape viewports the step region scrolls, the last option stays reachable and clear of the action bar, and the bar stays on screen. Long answer labels wrap rather than truncating and still meet the minimum target. Injected safe-area insets are respected by both the action bar and the sticky CTA. On a throttled connection the headline and CTA render before scripts settle and the headline does not shift. The booking path is an external link with a printed fallback URL and no iframe that could be blocked. |
 
 ---
 

@@ -1,13 +1,5 @@
 import type { Metadata } from "next";
-import { AudienceSelector } from "@/components/landing/AudienceSelector";
-import { Faq } from "@/components/landing/Faq";
-import { FinalCta } from "@/components/landing/FinalCta";
-import { Footer } from "@/components/landing/Footer";
-import { Header } from "@/components/landing/Header";
-import { Hero } from "@/components/landing/Hero";
-import { HowItWorks } from "@/components/landing/HowItWorks";
-import { PainPoints } from "@/components/landing/PainPoints";
-import { Services } from "@/components/landing/Services";
+import { LandingPage } from "@/components/landing/LandingPage";
 import { faqItems } from "@/content/faq";
 import { brand, metadata as siteCopy } from "@/content/site";
 import { publicConfig } from "@/lib/public-config";
@@ -17,8 +9,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * FAQPage structured data, built from the same source as the visible FAQ so
- * the two can never drift apart.
+ * FAQPage structured data, generated from the same source as the visible FAQ
+ * so the two cannot drift apart.
  */
 function FaqJsonLd() {
   const json = {
@@ -33,7 +25,7 @@ function FaqJsonLd() {
   return (
     <script
       type="application/ld+json"
-      // Content is static and authored in-repo, not user input.
+      // Static, authored in-repo — never user input.
       dangerouslySetInnerHTML={{ __html: JSON.stringify(json) }}
     />
   );
@@ -56,23 +48,28 @@ function OrganizationJsonLd() {
   );
 }
 
+/**
+ * The landing page is statically prerendered, which is what keeps its TTFB and
+ * LCP low. That means the values below are read at BUILD time, so
+ * `NEXT_PUBLIC_BOOKING_URL` and `NEXT_PUBLIC_CONTACT_EMAIL` must be present in
+ * the build environment for the direct-booking section and the footer address
+ * to appear.
+ *
+ * The confirmation screen is different: it takes its booking URL from the lead
+ * endpoint's response, which resolves `BOOKING_URL` at request time. So a
+ * booking link can be changed without a rebuild for people finishing the
+ * assessment — only this marketing section needs one.
+ *
+ * Both are documented in .env.example and docs/measurement.md.
+ */
 export default function HomePage() {
   return (
     <>
-      <a href="#main" className="aion-skip-link rounded-full bg-navy-900 px-4 py-2 text-white">
-        Skip to content
-      </a>
-      <Header />
-      <main id="main">
-        <Hero />
-        <AudienceSelector />
-        <PainPoints />
-        <Services />
-        <HowItWorks />
-        <Faq />
-        <FinalCta />
-      </main>
-      <Footer />
+      {/* The direct-booking section renders only when a real URL is configured. */}
+      <LandingPage
+        bookingUrl={publicConfig.bookingUrl}
+        contactEmail={publicConfig.contactEmail}
+      />
       <FaqJsonLd />
       <OrganizationJsonLd />
     </>

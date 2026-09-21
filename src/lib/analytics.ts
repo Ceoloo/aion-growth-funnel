@@ -17,9 +17,13 @@
 export type AnalyticsEventName =
   | "landing_cta_clicked"
   | "assessment_started"
+  | "assessment_step_viewed"
   | "assessment_step_completed"
+  /** Fired when a visitor leaves a step without completing it. */
+  | "assessment_step_exited"
   | "assessment_completed"
   | "recommendation_viewed"
+  | "contact_step_viewed"
   | "lead_submission_succeeded"
   | "lead_submission_failed"
   | "booking_link_clicked";
@@ -47,6 +51,11 @@ const ALLOWED_PROP_KEYS = new Set([
   "error_code",
   "answer_count",
   "has_booking_link",
+  /** "back" | "abandoned" — how the visitor left a step. */
+  "exit_reason",
+  /** Seconds spent on a step, rounded. Coarse by design. */
+  "dwell_seconds",
+  "entry_point",
 ]);
 
 const MAX_STRING_LENGTH = 64;
@@ -108,10 +117,13 @@ export function track(event: AnalyticsEventName, props?: AnalyticsProps): void {
 }
 
 /**
- * A click on the booking link is exactly that — a click. It is never recorded
- * as a confirmed appointment; only a verified booking event from the calendar
- * provider can establish that.
+ * A click on the booking link is exactly that — a click.
+ *
+ * It is deliberately NOT a confirmed appointment, and there is no client-side
+ * event that claims one. A verified booking can only be established by an
+ * authenticated event from the calendar provider, which arrives server-side at
+ * /api/integrations/ghl/callback. See docs/measurement.md.
  */
-export function trackBookingLinkClicked(): void {
-  track("booking_link_clicked");
+export function trackBookingLinkClicked(props?: AnalyticsProps): void {
+  track("booking_link_clicked", props);
 }

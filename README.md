@@ -24,7 +24,8 @@ before this accepts real leads.
 | `GET /api/health` | Operator readiness check — what is configured, what is missing |
 
 **Stack:** Next.js 15 (App Router) · React 19 · TypeScript (strict) ·
-Tailwind CSS v4 · Zod · Vitest. Postgres or SQLite for durable storage.
+Tailwind CSS v4 · shadcn/ui on Radix · Motion for React · React Hook Form +
+Zod · Vitest. Postgres or SQLite for durable storage.
 
 ---
 
@@ -69,6 +70,13 @@ npm run lint           # eslint
 npm test               # vitest
 npm run check          # all three
 npm run build          # production build
+
+# Slower checks against a running server — see tests/browser/README.md
+npm run verify:viewports      # 360 / 390 / 430 / 768 / 1440 + all four audience paths
+npm run verify:interactions   # navigation, validation, submission, motion, keyboard
+npm run verify:short-screens  # short viewports, long labels, safe areas, slow network
+npm run mock:ghl              # mock GoHighLevel
+npm run verify:ghl            # CRM acceptance checks against it
 ```
 
 ### Worker
@@ -126,6 +134,10 @@ Everything a non-developer is likely to change lives in `src/content/`.
 | `src/content/recommendation-rules.ts` | **Which answers map to which service**, and the priority library |
 | `src/content/consent.ts` | Consent wording and its version string |
 
+CTA labels live in `ctaLabels` in `src/content/site.ts` — every button on the
+site reads from it, so copy changes (or a future A/B test) touch one object
+rather than a dozen components.
+
 ### Changing the recommendation logic
 
 The rules live in two places:
@@ -152,23 +164,38 @@ wording that was agreed to.
 
 ## How the funnel behaves
 
-- **Mobile first.** Designed at 360px and enhanced upward. Heights use
-  `100dvh` with a `100vh` fallback; safe-area insets are respected; sticky
-  action bars sit in flow so they never cover the last option or a focused
-  input; every interactive target is at least 44px.
+- **Thumb-first.** Designed at 360–430px and enhanced upward. Every
+  interactive target is at least 48px, primary actions at least 52px, and the
+  whole answer card is the hit area — the control is stretched across it, not
+  just visually implied.
+- **No auto-advance.** Selecting an answer never moves the screen on its own.
+  There is always a visible Continue, so a choice can be read back and changed
+  before committing, and Back never feels like a trap. The state machine has no
+  event for "an answer changed", which is the structural guarantee.
 - **One question per screen**, with real progress against the active branch
-  rather than a hard-coded total.
+  rather than a hard-coded total, announced through `aria-valuetext`.
 - **Back navigation preserves answers.** The only answer ever cleared is the
   goal, and only when switching to or from real estate, which uses a different
   set of goals — keeping it would leave an invisible option selected.
 - **The result comes before the ask.** The recommendation is shown in full
   before any contact details are requested.
-- **Accessible.** Options are real radios and checkboxes, so keyboard and
-  screen-reader behaviour is native. Nothing depends on hover. Reduced motion
-  is honoured.
+- **The action area cannot cover content.** The shell is exactly one viewport
+  tall, the step region scrolls inside it, and the action bar is a flex sibling
+  rather than an overlay. When the mobile keyboard opens it detaches and
+  scrolls with the content, so nobody is pinned between the keyboard and a
+  fixed footer.
+- **Accessible.** Radix controls, native keyboard behaviour, focus moved to
+  each new screen, errors tied to their fields. Nothing depends on hover.
+  Reduced motion is honoured twice over — by Motion and by CSS.
 - **Answers persist in `sessionStorage`; contact details never do.** Only
   answer ids from a closed vocabulary are stored, and they are cleared after a
   successful submission. Nothing uses `localStorage`.
+- **Recoverable errors cost nothing.** A failed submission keeps every field
+  filled in; the visitor just presses the button again. Repeated taps cannot
+  send a second lead.
+
+See [`docs/design-system.md`](./docs/design-system.md) for the tokens,
+primitives and layout rules behind all of this.
 
 ---
 
@@ -209,9 +236,16 @@ registerAnalyticsSink({
 });
 ```
 
-Events: `landing_cta_clicked`, `assessment_started`,
-`assessment_step_completed`, `assessment_completed`, `recommendation_viewed`,
-`lead_submission_succeeded`, `lead_submission_failed`, `booking_link_clicked`.
+Events: `landing_cta_clicked`, `assessment_started`, `assessment_step_viewed`,
+`assessment_step_completed`, `assessment_step_exited`, `assessment_completed`,
+`recommendation_viewed`, `contact_step_viewed`, `lead_submission_succeeded`,
+`lead_submission_failed`, `booking_link_clicked`.
+
+The numbers worth optimising for — qualified calls attended and customers won
+— are downstream CRM outcomes, not browser events. See
+[`docs/measurement.md`](./docs/measurement.md) for how to join them to the
+funnel via `submission_id`, and for the conversion hypotheses this design is
+built around.
 
 Properties are restricted to an allow-list of non-identifying keys, and any
 value containing whitespace or an `@` is dropped — so names, emails, phone
@@ -232,6 +266,9 @@ confirmed appointment; only a verified booking event can establish that.
 | [`docs/ghl-workflow.md`](./docs/ghl-workflow.md) | Workflow build guide and ownership rules |
 | [`docs/fixtures/assessment-event.sample.json`](./docs/fixtures/assessment-event.sample.json) | Synthetic sample event |
 | [`docs/launch-checklist.md`](./docs/launch-checklist.md) | What is still required before going live |
+| [`docs/design-system.md`](./docs/design-system.md) | Tokens, primitives, layout and motion rules |
+| [`docs/measurement.md`](./docs/measurement.md) | What to measure, what not to claim, conversion hypotheses |
+| [`tests/browser/README.md`](./tests/browser/README.md) | How to re-run the browser and mock-CRM checks |
 
 ---
 
@@ -239,9 +276,19 @@ confirmed appointment; only a verified booking event can establish that.
 
 Original AION identity: a type-led wordmark where the "O" becomes a ring with a
 single connecting node. Deep navy and charcoal for structure, warm white for
-reading surfaces, electric blue for action, restrained cyan for detail. Large
-type, generous spacing, rounded cards, subtle borders, light motion. No
-third-party branding or assets are used anywhere.
+reading surfaces, electric blue for action, restrained cyan for detail on dark
+surfaces only. Large type, generous spacing, rounded cards, subtle borders,
+light motion. No third-party branding or assets are used anywhere.
+
+The landing page alternates light, tint and dark bands down the page, with the
+two dark bands marking the moments that matter most: what we actually do, and
+the final ask.
+
+**There is no photography yet.** The site uses none rather than passing stock
+images off as project work. Real photography is the single biggest visual
+upgrade available and is listed in `docs/launch-checklist.md`; the
+"Example workflows and deliverables" section stands in for it and is labelled
+as examples, not client work.
 
 Premium photography and videography are described as an **optional** service
 delivered with AION's creative production partner, Daniel. Daniel does not own

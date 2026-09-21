@@ -1,37 +1,39 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { faqItems, faqSection } from "@/content/faq";
-import { Section } from "@/components/ui/Section";
+import { Section, type Surface } from "@/components/ui/section";
 
 /**
- * FAQ built on native <details>. It works without JavaScript, is keyboard
- * operable by default, and needs no hover.
+ * FAQ on the Radix accordion: keyboard operable, correct ARIA, and no hover
+ * dependency. `type="multiple"` lets someone keep several answers open while
+ * comparing them.
  */
-export function Faq() {
+export function Faq({ surface = "tint" }: { surface?: Surface }) {
   return (
-    <Section eyebrow={faqSection.eyebrow} heading={faqSection.heading}>
-      <div className="max-w-3xl divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white">
-        {faqItems.map((item) => (
-          <details key={item.question} className="group">
-            <summary className="flex min-h-[56px] cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[1rem] font-semibold text-navy-900 marker:content-none sm:px-6">
-              <span>{item.question}</span>
-              <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0 text-charcoal-400 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </summary>
-            <div className="px-5 pb-5 text-[0.95rem] leading-relaxed text-charcoal-500 sm:px-6">
+    <Section surface={surface} eyebrow={faqSection.eyebrow} heading={faqSection.heading}>
+      <Accordion
+        type="multiple"
+        className="max-w-3xl divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
+      >
+        {faqItems.map((item, index) => (
+          <AccordionItem
+            key={item.question}
+            value={`faq-${index}`}
+            className="border-b-0 px-5 sm:px-6"
+          >
+            <AccordionTrigger className="min-h-[var(--tap-min)] py-4 text-left text-h3 text-card-foreground hover:no-underline">
+              {item.question}
+            </AccordionTrigger>
+            <AccordionContent className="pb-5 text-body text-muted-foreground">
               {item.answer}
-            </div>
-          </details>
+            </AccordionContent>
+          </AccordionItem>
         ))}
-      </div>
+      </Accordion>
     </Section>
   );
 }

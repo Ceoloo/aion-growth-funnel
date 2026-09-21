@@ -1,29 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { ctaLabels, finalCta } from "@/content/site";
 import { track } from "@/lib/analytics";
+import { Button } from "@/components/ui/button";
 
 export function FinalCta() {
   return (
-    <section className="aion-shell bg-paper-100 py-16 sm:py-20 lg:py-24">
-      <div className="mx-auto w-full max-w-4xl">
-        <div className="rounded-3xl border border-line bg-white px-6 py-10 text-center shadow-[var(--shadow-card)] sm:px-10 sm:py-14">
-          <h2 className="text-[1.7rem] leading-[1.15] font-semibold tracking-[-0.02em] text-navy-900 sm:text-[2.25rem]">
-            {finalCta.heading}
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-[1rem] leading-relaxed text-charcoal-500 sm:text-[1.08rem]">
-            {finalCta.supporting}
-          </p>
-          <Link
-            href="/assessment"
-            onClick={() =>
-              track("landing_cta_clicked", { cta_id: "primary", cta_location: "final" })
-            }
-            className="mt-8 inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-electric-500 px-8 text-[1.02rem] font-semibold text-white shadow-[0_10px_30px_-14px_rgba(23,80,216,0.95)] transition-colors hover:bg-electric-600 sm:w-auto"
-          >
-            {ctaLabels.primary}
-          </Link>
+    <section className="surface-dark page-gutter bg-background py-20 text-foreground sm:py-24">
+      <div className="container-page max-w-3xl text-center">
+        <h2 className="text-h1 text-balance">{finalCta.heading}</h2>
+        <p className="mx-auto mt-4 max-w-xl text-lead text-muted-foreground">
+          {finalCta.supporting}
+        </p>
+        <div className="mt-9 flex justify-center">
+          <Button asChild size="action" full className="sm:w-auto">
+            <Link
+              href="/assessment"
+              onClick={() =>
+                track("landing_cta_clicked", { cta_id: "primary", cta_location: "final" })
+              }
+            >
+              {ctaLabels.primary}
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
         </div>
       </div>
     </section>

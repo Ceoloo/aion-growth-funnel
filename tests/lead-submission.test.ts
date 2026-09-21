@@ -206,10 +206,19 @@ describe("abuse controls", () => {
   });
 
   it("rejects a submission posted faster than a person could type", async () => {
-    const { POST } = await loadRoute();
-    const response = await POST(request(body({ formRenderedAt: Date.now() })) as RouteRequest);
-    expect(response.status).toBe(429);
-    expect(store.all()).toHaveLength(0);
+    // The clock is pinned so the assertion cannot depend on how long the
+    // handler itself takes: under heavy load a real elapsed time could drift
+    // past the dwell threshold and make this pass for the wrong reason.
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      const { POST } = await loadRoute();
+      const response = await POST(request(body({ formRenderedAt: now })) as RouteRequest);
+      expect(response.status).toBe(429);
+      expect(store.all()).toHaveLength(0);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("rate limits repeated submissions from one address", async () => {

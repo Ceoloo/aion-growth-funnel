@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { AnimatePresence, m } from "@/components/ui/m";
 import {
   bottleneckChoices,
   businessTypeChoices,
@@ -22,28 +23,33 @@ import { track } from "@/lib/analytics";
 import {
   branchFor,
   isStepAnswered,
-  nextStep,
   previousStep,
   progressFor,
   reconcileAnswers,
   stepAnswerKey,
   type AssessmentAnswers,
 } from "@/lib/assessment";
+import {
+  canContinue as canContinueFor,
+  funnelReducer,
+  isQuestionScreen,
+  resumeScreen,
+  type FunnelState,
+} from "@/lib/funnel-machine";
 import { recommend } from "@/lib/recommendation";
 import { clearAnswers, mergeAnswers, readAnswers } from "@/lib/session-answers";
-import { captureAttribution, readAttribution } from "@/lib/utm";
-import { AnswerSummary, FunnelShell } from "./FunnelShell";
-import { ConfirmationStep, type SubmissionSuccess } from "./ConfirmationStep";
 import {
-  ContactStep,
   emptyContactForm,
+  toLeadContact,
   type ContactFormValues,
-  type SubmissionFailure,
-} from "./ContactStep";
+} from "@/lib/contact-form-schema";
+import { captureAttribution, readAttribution } from "@/lib/utm";
+import { stepVariants, usePrefersReducedMotion } from "@/components/ui/motion";
+import { AnswerSummary, FunnelShell, ServiceContext } from "./FunnelShell";
+import { ConfirmationStep, type SubmissionSuccess } from "./ConfirmationStep";
+import { ContactStep, type SubmissionFailure } from "./ContactStep";
 import { QuestionStep } from "./QuestionStep";
 import { ResultStep } from "./ResultStep";
-
-type Screen = StepId | "result" | "contact" | "confirmation";
 
 function choicesFor(step: StepId, answers: AssessmentAnswers): Choice<string>[] {
   switch (step) {
@@ -68,10 +74,7 @@ function choicesFor(step: StepId, answers: AssessmentAnswers): Choice<string>[] 
 function newSubmissionId(): string {
   const webCrypto: Crypto | undefined =
     typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
-  if (webCrypto && typeof webCrypto.randomUUID === "function") {
-    return webCrypto.randomUUID();
-  }
-  // Fallback for older browsers: an RFC-4122 v4 shape from getRandomValues.
+  if (webCrypto && typeof webCrypto.randomUUID === "function") return webCrypto.randomUUID();
   const bytes = new Uint8Array(16);
   webCrypto?.getRandomValues(bytes);
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
@@ -85,253 +88,262 @@ function newSubmissionId(): string {
 
 export function AssessmentFlow() {
   const searchParams = useSearchParams();
-  const [answers, setAnswers] = useState<AssessmentAnswers>({});
-  const [screen, setScreen] = useState<Screen>("business-type");
-  const [hydrated, setHydrated] = useState(false);
-  const [contact, setContact] = useState<ContactFormValues>(emptyContactForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [failure, setFailure] = useState<SubmissionFailure | null>(null);
-  const [success, setSuccess] = useState<SubmissionSuccess | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
 
-  const startedRef = useRef(false);
-  const formRenderedAt = useRef<number | null>(null);
-  // Stable for the life of this completed assessment, so a retry after a
-  // network error cannot create a second lead.
-  const submissionIdRef = useRef<string | null>(null);
-  const liveRegionRef = useRef<HTMLDivElement | null>(null);
+  const [answers, setAnswers] = React.useState<AssessmentAnswers>({});
+  const [state, dispatch] = React.useReducer(funnelReducer, {
+    screen: "business-type",
+    direction: "forward",
+  } satisfies FunnelState);
+  const [hydrated, setHydrated] = React.useState(false);
+  const [contactValues, setContactValues] = React.useState<ContactFormValues>(emptyContactForm);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [failure, setFailure] = React.useState<SubmissionFailure | null>(null);
+  const [success, setSuccess] = React.useState<SubmissionSuccess | null>(null);
+
+  const startedRef = React.useRef(false);
+  const stepEnteredAt = React.useRef(Date.now());
+  const formRenderedAt = React.useRef<number | null>(null);
+  // Stable for the life of one completed assessment, so retrying after a
+  // network error can never create a second lead.
+  const submissionIdRef = React.useRef<string | null>(null);
+  const inFlightRef = React.useRef(false);
+  const headingRef = React.useRef<HTMLDivElement | null>(null);
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+
+  const { screen, direction } = state;
 
   // --- Hydration -------------------------------------------------------
-  useEffect(() => {
+  React.useEffect(() => {
     captureAttribution();
 
     const stored = readAnswers();
     const preselected = searchParams.get("audience");
     const merged: AssessmentAnswers =
-      preselected && isAudienceId(preselected)
-        ? { ...stored, audience: preselected }
-        : stored;
+      preselected && isAudienceId(preselected) ? { ...stored, audience: preselected } : stored;
 
     const reconciled = reconcileAnswers(merged);
     setAnswers(reconciled);
-
-    // Open on the first unanswered question so a preselected audience (or a
-    // refresh partway through) does not make anyone repeat themselves.
-    const branch = branchFor(reconciled);
-    const firstUnanswered = branch.find((step) => !isStepAnswered(step, reconciled));
-    setScreen(firstUnanswered ?? "result");
+    dispatch({ type: "GOTO", screen: resumeScreen(reconciled), direction: "forward" });
     setHydrated(true);
   }, [searchParams]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!hydrated || startedRef.current) return;
     startedRef.current = true;
-    track("assessment_started", { audience: answers.audience });
-  }, [hydrated, answers.audience]);
+    track("assessment_started", {
+      audience: answers.audience,
+      entry_point: searchParams.get("audience") ? "audience_card" : "direct",
+    });
+  }, [hydrated, answers.audience, searchParams]);
 
-  // Move focus to the top of each new screen so keyboard and screen-reader
-  // users land on the new question rather than staying where the old one was.
-  useEffect(() => {
+  // Move focus to the new screen's heading and reset the scroll position, so
+  // keyboard and screen-reader users land on the new question rather than
+  // wherever the previous one left them.
+  React.useEffect(() => {
     if (!hydrated) return;
-    liveRegionRef.current?.focus();
-  }, [screen, hydrated]);
-
-  const recommendation = useMemo(() => recommend(answers), [answers]);
-
-  // --- Answer handling -------------------------------------------------
-  const applyAnswer = useCallback(
-    (step: StepId, value: string, checked: boolean) => {
-      setAnswers((current) => {
-        const key = stepAnswerKey[step];
-        let next: AssessmentAnswers;
-
-        if (key === "channels") {
-          const existing = current.channels ?? [];
-          const updated = checked
-            ? [...new Set([...existing, value])]
-            : existing.filter((c) => c !== value);
-          next = { ...current, channels: updated as AssessmentAnswers["channels"] };
-        } else {
-          next = { ...current, [key]: value } as AssessmentAnswers;
-        }
-
-        next = reconcileAnswers(next);
-        mergeAnswers(next);
-        return next;
-      });
-    },
-    [],
-  );
-
-  const advance = useCallback(
-    (step: StepId, updated: AssessmentAnswers) => {
-      const progress = progressFor(step, updated);
-      track("assessment_step_completed", {
-        step_id: step,
+    stepEnteredAt.current = Date.now();
+    headingRef.current?.focus();
+    scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    if (isQuestionScreen(screen)) {
+      const progress = progressFor(screen, answers);
+      track("assessment_step_viewed", {
+        step_id: screen,
         step_index: progress.current,
         step_total: progress.total,
-        // Answer ids only. `sanitiseProps` drops anything outside the
-        // allow-list, so no free text can leak through here.
-        audience: updated.audience,
-        bottleneck: step === "bottleneck" ? updated.bottleneck : undefined,
-        follow_up: step === "follow-up" ? updated.followUp : undefined,
-        goal: step === "goal" ? updated.goal : undefined,
-        content_need: step === "content-needs" ? updated.contentNeed : undefined,
-        timing: step === "timing" ? updated.timing : undefined,
-        channel_count: step === "channels" ? (updated.channels?.length ?? 0) : undefined,
+      });
+    }
+    // `answers` deliberately omitted: this fires on screen changes only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, hydrated]);
+
+  const recommendation = React.useMemo(() => recommend(answers), [answers]);
+
+  // --- Answer handling -------------------------------------------------
+  const setSingle = React.useCallback((step: StepId, value: string) => {
+    setAnswers((current) => {
+      const next = reconcileAnswers({
+        ...current,
+        [stepAnswerKey[step]]: value,
+      } as AssessmentAnswers);
+      mergeAnswers(next);
+      return next;
+    });
+  }, []);
+
+  const toggleMulti = React.useCallback((step: StepId, value: string, checked: boolean) => {
+    setAnswers((current) => {
+      const key = stepAnswerKey[step];
+      if (key !== "channels") return current;
+      const existing = current.channels ?? [];
+      const updated = checked
+        ? [...new Set([...existing, value])]
+        : existing.filter((c) => c !== value);
+      const next = reconcileAnswers({
+        ...current,
+        channels: updated as AssessmentAnswers["channels"],
+      });
+      mergeAnswers(next);
+      return next;
+    });
+  }, []);
+
+  // --- Navigation ------------------------------------------------------
+  const dwellSeconds = () => Math.round((Date.now() - stepEnteredAt.current) / 1000);
+
+  const handleContinue = React.useCallback(() => {
+    if (isQuestionScreen(screen)) {
+      const progress = progressFor(screen, answers);
+      const key = stepAnswerKey[screen];
+      const value = answers[key];
+      track("assessment_step_completed", {
+        step_id: screen,
+        step_index: progress.current,
+        step_total: progress.total,
+        dwell_seconds: dwellSeconds(),
+        // Answer ids only — `sanitiseProps` drops anything else.
+        audience: answers.audience,
+        bottleneck: screen === "bottleneck" ? answers.bottleneck : undefined,
+        follow_up: screen === "follow-up" ? answers.followUp : undefined,
+        goal: screen === "goal" ? answers.goal : undefined,
+        content_need: screen === "content-needs" ? answers.contentNeed : undefined,
+        timing: screen === "timing" ? answers.timing : undefined,
+        channel_count: Array.isArray(value) ? value.length : undefined,
       });
 
-      const following = nextStep(step, updated);
-      if (following) {
-        setScreen(following);
-        return;
-      }
-      track("assessment_completed", {
-        audience: updated.audience,
-        answer_count: branchFor(updated).length,
-      });
-      setScreen("result");
-    },
-    [],
-  );
-
-  const handleSelect = useCallback(
-    (step: StepId, value: string, checked: boolean) => {
-      applyAnswer(step, value, checked);
-      if (stepCopy[step].kind === "single") {
-        // Read the updated answers from the functional update by recomputing
-        // them here — the state setter above is the source of truth.
-        setAnswers((current) => {
-          const updated = reconcileAnswers({
-            ...current,
-            [stepAnswerKey[step]]: value,
-          } as AssessmentAnswers);
-          mergeAnswers(updated);
-          // Defer navigation so the selected state paints before the change.
-          queueMicrotask(() => advance(step, updated));
-          return updated;
+      const branch = branchFor(answers);
+      if (screen === branch[branch.length - 1]) {
+        track("assessment_completed", {
+          audience: answers.audience,
+          answer_count: branch.length,
         });
       }
-    },
-    [applyAnswer, advance],
-  );
-
-  const handleBack = useCallback(() => {
+    }
+    if (screen === "result") {
+      formRenderedAt.current = Date.now();
+      track("contact_step_viewed", { recommended_service: recommendation.service.id });
+    }
     setFailure(null);
-    setScreen((current) => {
-      if (current === "confirmation") return current;
-      if (current === "contact") return "result";
-      if (current === "result") {
-        const branch = branchFor(answers);
-        return branch[branch.length - 1] ?? "business-type";
-      }
-      return previousStep(current, answers) ?? current;
-    });
-  }, [answers]);
+    dispatch({ type: "CONTINUE", answers });
+  }, [screen, answers, recommendation.service.id]);
+
+  const handleBack = React.useCallback(() => {
+    if (isQuestionScreen(screen)) {
+      const progress = progressFor(screen, answers);
+      track("assessment_step_exited", {
+        step_id: screen,
+        step_index: progress.current,
+        step_total: progress.total,
+        exit_reason: "back",
+        dwell_seconds: dwellSeconds(),
+      });
+    }
+    setFailure(null);
+    dispatch({ type: "BACK", answers });
+  }, [screen, answers]);
 
   // --- Submission ------------------------------------------------------
-  const handleSubmit = useCallback(async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    setFailure(null);
+  const handleSubmit = React.useCallback(
+    async (values: ContactFormValues) => {
+      // Guard against a double submit from a fast second tap or an Enter key
+      // landing while the first request is still open.
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      setSubmitting(true);
+      setFailure(null);
 
-    if (!submissionIdRef.current) submissionIdRef.current = newSubmissionId();
-    if (formRenderedAt.current === null) formRenderedAt.current = Date.now() - 2_000;
+      if (!submissionIdRef.current) submissionIdRef.current = newSubmissionId();
+      if (formRenderedAt.current === null) formRenderedAt.current = Date.now() - 2_000;
 
-    const payload = {
-      submissionId: submissionIdRef.current,
-      contact: {
-        fullName: contact.fullName.trim(),
-        email: contact.email.trim(),
-        businessName: contact.businessName.trim(),
-        phone: contact.phone.trim() || undefined,
-        website: contact.website.trim() || undefined,
-      },
-      answers,
-      consent: {
-        marketingEmail: contact.marketingEmail,
-        copyVersion: MARKETING_CONSENT_VERSION,
-      },
-      attribution: readAttribution(),
-      companyWebsiteConfirm: contact.honeypot,
-      formRenderedAt: formRenderedAt.current,
-    };
+      const payload = {
+        submissionId: submissionIdRef.current,
+        contact: toLeadContact(values),
+        answers,
+        consent: {
+          marketingEmail: values.marketingEmail,
+          copyVersion: MARKETING_CONSENT_VERSION,
+        },
+        attribution: readAttribution(),
+        companyWebsiteConfirm: values.companyWebsiteConfirm,
+        formRenderedAt: formRenderedAt.current,
+      };
 
-    try {
-      const response = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-
-      // A success screen is shown only when the server says it accepted and
-      // stored the submission. Anything else is an error, including a network
-      // failure that leaves the outcome unknown.
-      if (!response.ok || data.ok !== true) {
-        const code = typeof data.code === "string" ? data.code : "submission_failed";
-        track("lead_submission_failed", { error_code: code });
-        setFailure({
-          code,
-          message:
-            typeof data.message === "string"
-              ? data.message
-              : "Something went wrong on our side. Please try again.",
-          retryable: code !== "validation_failed",
-          contactEmail: typeof data.contactEmail === "string" ? data.contactEmail : null,
-          fieldErrors:
-            typeof data.errors === "object" && data.errors !== null
-              ? (data.errors as Record<string, string>)
-              : undefined,
+      try {
+        const response = await fetch("/api/leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-        return;
+        const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+
+        // A success screen appears only when the server says it stored the
+        // submission. Anything else — including an unknown outcome — is an error.
+        if (!response.ok || data.ok !== true) {
+          const code = typeof data.code === "string" ? data.code : "submission_failed";
+          track("lead_submission_failed", { error_code: code });
+          setFailure({
+            code,
+            message:
+              typeof data.message === "string"
+                ? data.message
+                : "Something went wrong on our side. Please try again.",
+            retryable: code !== "validation_failed",
+            contactEmail: typeof data.contactEmail === "string" ? data.contactEmail : null,
+            fieldErrors:
+              typeof data.errors === "object" && data.errors !== null
+                ? (data.errors as Record<string, string>)
+                : undefined,
+          });
+          return;
+        }
+
+        track("lead_submission_succeeded", {
+          recommended_service: recommendation.service.id,
+          recommendation_rule: recommendation.ruleId,
+          audience: answers.audience,
+          has_booking_link: typeof data.bookingUrl === "string",
+        });
+
+        setSuccess({
+          submissionId: String(data.submissionId ?? submissionIdRef.current),
+          recommendedService:
+            typeof data.recommendedService === "string"
+              ? data.recommendedService
+              : recommendation.service.name,
+          bookingUrl: typeof data.bookingUrl === "string" ? data.bookingUrl : null,
+          contactEmail: typeof data.contactEmail === "string" ? data.contactEmail : null,
+          delivery:
+            data.delivery === "complete" || data.delivery === "needs_operator"
+              ? data.delivery
+              : "pending",
+        });
+
+        // The assessment is finished, so a fresh visit starts clean. Contact
+        // details were never written to browser storage in the first place.
+        clearAnswers();
+        dispatch({ type: "SUBMITTED" });
+      } catch {
+        track("lead_submission_failed", { error_code: "network_error" });
+        setFailure({
+          code: "network_error",
+          message:
+            "We couldn't reach our server. Check your connection and try again — nothing you typed has been lost.",
+          retryable: true,
+        });
+      } finally {
+        inFlightRef.current = false;
+        setSubmitting(false);
       }
+    },
+    [answers, recommendation],
+  );
 
-      track("lead_submission_succeeded", {
-        recommended_service: recommendation.service.id,
-        recommendation_rule: recommendation.ruleId,
-        audience: answers.audience,
-        has_booking_link: typeof data.bookingUrl === "string",
-      });
-
-      setSuccess({
-        submissionId: String(data.submissionId ?? submissionIdRef.current),
-        recommendedService:
-          typeof data.recommendedService === "string"
-            ? data.recommendedService
-            : recommendation.service.name,
-        bookingUrl: typeof data.bookingUrl === "string" ? data.bookingUrl : null,
-        contactEmail: typeof data.contactEmail === "string" ? data.contactEmail : null,
-        delivery:
-          data.delivery === "complete" || data.delivery === "needs_operator"
-            ? data.delivery
-            : "pending",
-      });
-
-      // The assessment is finished; clear the stored answers so a fresh visit
-      // starts clean. Contact details were never stored in the browser.
-      clearAnswers();
-      setScreen("confirmation");
-    } catch {
-      track("lead_submission_failed", { error_code: "network_error" });
-      setFailure({
-        code: "network_error",
-        message:
-          "We couldn't reach our server. Check your connection and try again — your answers are safe.",
-        retryable: true,
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }, [answers, contact, recommendation, submitting]);
-
-  // --- Rendering -------------------------------------------------------
-  const summaryItems = useMemo(() => {
-    const branch = branchFor(answers);
+  // --- Desktop context column -----------------------------------------
+  const summaryItems = React.useMemo(() => {
     const items: { label: string; value: string }[] = [];
-    for (const step of branch) {
+    for (const step of branchFor(answers)) {
       if (!isStepAnswered(step, answers)) continue;
-      const key = stepAnswerKey[step];
-      const value = answers[key];
+      const value = answers[stepAnswerKey[step]];
       items.push({
         label: stepCopy[step].shortLabel,
         value: Array.isArray(value)
@@ -342,37 +354,28 @@ export function AssessmentFlow() {
     return items;
   }, [answers]);
 
-  const aside = useMemo(() => {
+  const aside = React.useMemo(() => {
     if (screen === "confirmation") {
       return (
-        <div>
-          <p className="text-[0.72rem] font-semibold tracking-[0.2em] text-cyan-500 uppercase">
-            Received
-          </p>
-          <p className="mt-4 text-[1.05rem] leading-relaxed text-paper-300">
-            Thanks — we have everything we need to prepare for the call.
-          </p>
-        </div>
+        <ServiceContext
+          eyebrow="Received"
+          title="Thanks — that's everything we need."
+          body="We'll review your answers before the call so we can spend the time on your situation, not on the basics."
+        />
       );
     }
     if (screen === "result" || screen === "contact") {
       return (
-        <div>
-          <p className="text-[0.72rem] font-semibold tracking-[0.2em] text-cyan-500 uppercase">
-            Your suggested starting point
-          </p>
-          <p className="mt-4 text-[1.35rem] leading-snug font-semibold text-paper-50">
-            {recommendation.service.name}
-          </p>
-          <p className="mt-3 text-[0.95rem] leading-relaxed text-paper-300">
-            {recommendation.service.summary}
-          </p>
-          {answers.audience ? (
-            <p className="mt-6 border-t border-white/12 pt-5 text-[0.9rem] text-charcoal-400">
-              Built for {audienceById[answers.audience].descriptor}.
-            </p>
-          ) : null}
-        </div>
+        <ServiceContext
+          eyebrow="Your suggested starting point"
+          title={recommendation.service.name}
+          body={recommendation.service.summary}
+          footnote={
+            answers.audience
+              ? `Built for ${audienceById[answers.audience].descriptor}.`
+              : undefined
+          }
+        />
       );
     }
     return <AnswerSummary items={summaryItems} />;
@@ -382,32 +385,30 @@ export function AssessmentFlow() {
     return (
       <FunnelShell aside={<AnswerSummary items={[]} />}>
         <div className="flex flex-1 items-center justify-center py-20">
-          <p className="text-[0.95rem] text-charcoal-400">Loading your assessment…</p>
+          <p className="text-small text-muted-foreground">Loading your assessment…</p>
         </div>
       </FunnelShell>
     );
   }
 
-  /**
-   * Announcement for the live region. Kept as a separate value so the render
-   * below can narrow `screen` to a question step without re-checking it.
-   */
-  const announcement =
-    screen === "result"
+  const announcement = isQuestionScreen(screen)
+    ? screen === "goal"
+      ? goalQuestionFor(answers.audience)
+      : stepCopy[screen].question
+    : screen === "result"
       ? "Your suggested starting point"
       : screen === "contact"
         ? "Contact details"
-        : screen === "confirmation"
-          ? "Request received"
-          : stepCopy[screen].question;
+        : "Request received";
 
   function renderScreen() {
     if (screen === "confirmation") {
-      // The confirmation screen is only reachable after the server accepted
-      // and stored the submission, so `success` is always present here. The
-      // guard keeps that invariant explicit rather than assumed.
       return success ? (
-        <ConfirmationStep result={success} recommendation={recommendation} />
+        <ConfirmationStep
+          result={success}
+          recommendation={recommendation}
+          scrollRef={scrollRef}
+        />
       ) : null;
     }
 
@@ -415,15 +416,13 @@ export function AssessmentFlow() {
       return (
         <ContactStep
           recommendation={recommendation}
-          values={contact}
-          onChange={(patch) => {
-            if (formRenderedAt.current === null) formRenderedAt.current = Date.now();
-            setContact((current) => ({ ...current, ...patch }));
-          }}
+          defaultValues={contactValues}
+          onValuesChange={setContactValues}
           onSubmit={handleSubmit}
           onBack={handleBack}
           submitting={submitting}
           failure={failure}
+          scrollRef={scrollRef}
         />
       );
     }
@@ -433,16 +432,13 @@ export function AssessmentFlow() {
         <ResultStep
           recommendation={recommendation}
           answers={answers}
-          onContinue={() => {
-            formRenderedAt.current = Date.now();
-            setScreen("contact");
-          }}
+          onContinue={handleContinue}
           onBack={handleBack}
+          scrollRef={scrollRef}
         />
       );
     }
 
-    // `screen` is now narrowed to a question step.
     const step: StepId = screen;
     return (
       <QuestionStep
@@ -452,11 +448,13 @@ export function AssessmentFlow() {
         choices={choicesFor(step, answers)}
         kind={stepCopy[step].kind}
         value={answers[stepAnswerKey[step]] as string | string[] | undefined}
-        onChange={(value, checked) => handleSelect(step, value, checked)}
-        onContinue={() => advance(step, answers)}
+        onSelect={(value) => setSingle(step, value)}
+        onToggle={(value, checked) => toggleMulti(step, value, checked)}
+        onContinue={handleContinue}
         onBack={previousStep(step, answers) ? handleBack : null}
         progress={progressFor(step, answers)}
-        canContinue={isStepAnswered(step, answers)}
+        canContinue={canContinueFor(step, answers)}
+        scrollRef={scrollRef}
         footnote={
           step === "content-needs" && answers.audience ? (
             <ul className="space-y-1.5">
@@ -472,11 +470,29 @@ export function AssessmentFlow() {
 
   return (
     <FunnelShell aside={aside}>
-      {/* Announces each screen change without visually duplicating the heading. */}
-      <div ref={liveRegionRef} tabIndex={-1} aria-live="polite" className="sr-only">
+      {/* Announces each screen change without visually duplicating the heading.
+          It is also the focus target, so keyboard users land here on arrival. */}
+      <div ref={headingRef} tabIndex={-1} aria-live="polite" className="sr-only">
         {announcement}
       </div>
-      {renderScreen()}
+
+      {/* `mode="wait"` lets the outgoing screen finish before the incoming one
+          mounts, so two steps can never be in the DOM at once and a fast
+          double-tap cannot produce a duplicate transition. */}
+      <AnimatePresence mode="wait" custom={direction} initial={false}>
+        <m.div
+          key={screen}
+          data-step-panel={screen}
+          custom={direction}
+          variants={reducedMotion ? undefined : stepVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          {renderScreen()}
+        </m.div>
+      </AnimatePresence>
     </FunnelShell>
   );
 }

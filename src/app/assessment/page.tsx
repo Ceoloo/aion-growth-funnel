@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { AssessmentFlow } from "@/components/funnel/AssessmentFlow";
+import { MotionProvider } from "@/components/ui/motion";
 
 export const metadata: Metadata = {
   title: "Growth assessment",
@@ -14,18 +15,20 @@ export const metadata: Metadata = {
 function Fallback() {
   return (
     <div
-      className="flex items-center justify-center bg-paper-100"
+      className="surface-light flex items-center justify-center bg-background"
       style={{ minHeight: "var(--app-height)" }}
     >
-      <p className="text-[0.95rem] text-charcoal-400">Loading your assessment…</p>
+      <p className="text-small text-muted-foreground">Loading your assessment…</p>
     </div>
   );
 }
 
 export default function AssessmentPage() {
   return (
-    <Suspense fallback={<Fallback />}>
-      <AssessmentFlow />
-    </Suspense>
+    <MotionProvider>
+      <Suspense fallback={<Fallback />}>
+        <AssessmentFlow />
+      </Suspense>
+    </MotionProvider>
   );
 }
